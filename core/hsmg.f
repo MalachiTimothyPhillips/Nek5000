@@ -425,11 +425,9 @@ c----------------------------------------------------------------------
       subroutine h1mg_schwarz(e,r,sigma,l)
       include 'SIZE'
       include 'HSMG'
-
       real e(1),r(1)
 
       n = mg_h1_n(l,mg_fld)
-
       call h1mg_schwarz_part1 (e,r,l)
       call hsmg_schwarz_wt    (e,l)          ! e  := W e
       call cmult              (e,sigma,n)    !  l       l
@@ -890,6 +888,62 @@ c     clobbers r
      $      mg_fast_s(mg_fast_s_index(l,mg_fld)),
      $      mg_fast_d(mg_fast_d_index(l,mg_fld)),
      $      mg_nh(l)+2)
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine get_operators(sx,sy,sz,dl,wt,l)
+      include 'SIZE'
+      include 'INPUT'
+      include 'HSMG'
+      real sx(1), sy(1), sz(1), dl(1), wt(1)
+      call fill_operators(sx,sy,sz,dl,wt,
+     $      mg_fast_s(mg_fast_s_index(l,1)),
+     $      mg_fast_d(mg_fast_d_index(l,1)),
+     $      mg_schwarz_wt(mg_schwarz_wt_index(l,1)),
+     $      mg_nh(l)+2)
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine fill_operators(sx,sy,sz,dl,wt,s,d,my_wt,nl)
+      include 'SIZE'
+      include 'INPUT'
+      include 'HSMG'
+      real s(nl*nl,2,ldim,nelv)
+      real d(nl**ldim,nelv)
+      real sx(nl*nl,nelv), sy(nl*nl,nelv), sz(nl*nl,nelv)
+      real  dl(nl**3,nelv)
+      real wt(nl-2,nl-2,4,3,nelv)
+      real my_wt(nl-2,nl-2,4,3,nelv)
+      do ie=1,nelv
+         do i=1,nl*nl
+             sx(i,ie)=s(i,2,1,ie)
+             sy(i,ie)=s(i,2,2,ie)
+             sz(i,ie)=s(i,2,3,ie)
+         enddo
+         do i=1,nl*nl*nl
+            dl(i,ie)=d(i,ie)
+         enddo
+         do i=1,nl-2
+         do j=1,nl-2
+         wt(i,j,1,1,ie)=my_wt(i,j,1,1,ie)
+         wt(i,j,1,2,ie)=my_wt(i,j,1,2,ie)
+         wt(i,j,1,3,ie)=my_wt(i,j,1,3,ie)
+         wt(i,j,1,4,ie)=my_wt(i,j,1,4,ie)
+         wt(i,j,2,1,ie)=my_wt(i,j,2,1,ie)
+         wt(i,j,2,2,ie)=my_wt(i,j,2,2,ie)
+         wt(i,j,2,3,ie)=my_wt(i,j,2,3,ie)
+         wt(i,j,2,4,ie)=my_wt(i,j,2,4,ie)
+         wt(i,j,3,1,ie)=my_wt(i,j,3,1,ie)
+         wt(i,j,3,2,ie)=my_wt(i,j,3,2,ie)
+         wt(i,j,3,3,ie)=my_wt(i,j,3,3,ie)
+         wt(i,j,3,4,ie)=my_wt(i,j,3,4,ie)
+         wt(i,j,4,1,ie)=my_wt(i,j,4,1,ie)
+         wt(i,j,4,2,ie)=my_wt(i,j,4,2,ie)
+         wt(i,j,4,3,ie)=my_wt(i,j,4,3,ie)
+         wt(i,j,4,4,ie)=my_wt(i,j,4,4,ie)
+         enddo
+         enddo
+      enddo
       return
       end
 c----------------------------------------------------------------------

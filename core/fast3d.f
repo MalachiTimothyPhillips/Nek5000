@@ -818,9 +818,7 @@ c     ibc = 2  <==>  Neumann,
       do iface=1,2*ldim
          ied = eface(iface)
          ibc = -1
-
          if (ifmhd) call mhd_bc_dn(ibc,iface,e) ! can be overwritten by 'mvn'
-
          if (cbc(ied,e,ifield).eq.'   ') ibc = 0
          if (cbc(ied,e,ifield).eq.'E  ') ibc = 0
          if (cbc(ied,e,ifield).eq.'msi') ibc = 0
@@ -838,6 +836,8 @@ c     ibc = 2  <==>  Neumann,
          if (cbc(ied,e,ifield).eq.'mv ') ibc = 2
          if (cbc(ied,e,ifield).eq.'mvn') ibc = 2
          if (cbc(ied,e,ifield).eq.'v  ') ibc = 2
+c MTP: For some reason, nekRS has this boundary condition flag.
+         if (cbc(ied,e,ifield).eq.'EXO') ibc = 2
          if (cbc(ied,e,ifield).eq.'V  ') ibc = 2
          if (cbc(ied,e,ifield).eq.'W  ') ibc = 2
          if (cbc(ied,e,ifield).eq.'SYM') ibc = bsym
