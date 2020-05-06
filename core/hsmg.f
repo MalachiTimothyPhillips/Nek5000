@@ -911,9 +911,10 @@ c----------------------------------------------------------------------
       real s(nl*nl,2,ldim,nelv)
       real d(nl**ldim,nelv)
       real sx(nl*nl,nelv), sy(nl*nl,nelv), sz(nl*nl,nelv)
-      real  dl(nl**3,nelv)
+      real dl(nl**3,nelv)
       real wt(nl-2,nl-2,4,3,nelv)
       real my_wt(nl-2,nl-2,4,3,nelv)
+      integer i,j,k,l
       do ie=1,nelv
          do i=1,nl*nl
              sx(i,ie)=s(i,2,1,ie)
@@ -924,24 +925,12 @@ c----------------------------------------------------------------------
             dl(i,ie)=d(i,ie)
          enddo
          do i=1,nl-2
-         do j=1,nl-2
-         wt(i,j,1,1,ie)=my_wt(i,j,1,1,ie)
-         wt(i,j,1,2,ie)=my_wt(i,j,1,2,ie)
-         wt(i,j,1,3,ie)=my_wt(i,j,1,3,ie)
-         wt(i,j,1,4,ie)=my_wt(i,j,1,4,ie)
-         wt(i,j,2,1,ie)=my_wt(i,j,2,1,ie)
-         wt(i,j,2,2,ie)=my_wt(i,j,2,2,ie)
-         wt(i,j,2,3,ie)=my_wt(i,j,2,3,ie)
-         wt(i,j,2,4,ie)=my_wt(i,j,2,4,ie)
-         wt(i,j,3,1,ie)=my_wt(i,j,3,1,ie)
-         wt(i,j,3,2,ie)=my_wt(i,j,3,2,ie)
-         wt(i,j,3,3,ie)=my_wt(i,j,3,3,ie)
-         wt(i,j,3,4,ie)=my_wt(i,j,3,4,ie)
-         wt(i,j,4,1,ie)=my_wt(i,j,4,1,ie)
-         wt(i,j,4,2,ie)=my_wt(i,j,4,2,ie)
-         wt(i,j,4,3,ie)=my_wt(i,j,4,3,ie)
-         wt(i,j,4,4,ie)=my_wt(i,j,4,4,ie)
-         enddo
+           do j=1,nl-2
+            do k=1,4
+               do j=1,3
+                 wt(i,j,k,l,ie)=my_wt(i,j,k,l,ie)
+               enddo
+           enddo
          enddo
       enddo
       return
