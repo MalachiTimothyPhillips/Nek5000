@@ -927,9 +927,10 @@ c----------------------------------------------------------------------
          do i=1,nl-2
            do j=1,nl-2
             do k=1,4
-               do j=1,3
+               do l=1,3
                  wt(i,j,k,l,ie)=my_wt(i,j,k,l,ie)
                enddo
+            enddo
            enddo
          enddo
       enddo
