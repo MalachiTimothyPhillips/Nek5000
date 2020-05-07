@@ -429,7 +429,8 @@ c----------------------------------------------------------------------
 
       n = mg_h1_n(l,mg_fld)
       call h1mg_schwarz_part1 (e,r,l)
-      call hsmg_schwarz_wt    (e,l)          ! e  := W e
+      !call hsmg_schwarz_wt    (e,l)          ! e  := W e
+      call my_weight_fn    (e,mg_nh(l),l)          ! e  := W e
       call cmult              (e,sigma,n)    !  l       l
 
       return
@@ -478,6 +479,8 @@ c     Sum overlap region (border excluded)
       call hsmg_schwarz_dssum(mg_work(i),l)
       call hsmg_extrude(mg_work(i),0,one ,mg_work,0,onem,enx,eny,enz)
       call hsmg_extrude(mg_work(i),2,one,mg_work(i),0,one,enx,eny,enz)
+
+      !call my_weight_fn(mg_work(i),mg_nh(l), l)
 
       if(.not.if3d) then ! Go back to regular size array
          call hsmg_schwarz_toreg2d(e,mg_work(i),mg_nh(l))
@@ -3147,3 +3150,124 @@ c     stop
       return
       end
 c----------------------------------------------------------------------
+      real function sgn(xi)
+      if(xi.gt.0) then
+         sgn = 1.0
+      elseif(xi.lt.0) then
+         sgn = -1.0
+      else
+         sgn = 0.0
+      endif
+      return
+      end
+c----------------------------------------------------------------------
+      real function wf(xi,idomain)
+      logical idomain
+      real xi
+      real xi_cub, xi_fifth, xi_seventh, poly
+      if(idomain) then
+         xi_cub = xi*xi*xi
+         xi_fifth = xi_cub*xi*xi
+         xi_seventh = xi_fifth*xi*xi
+         !wf = xi
+         !wf = (3.0*xi-xi*xi*xi)*0.5
+         wf = (15.0*xi-10.0*xi*xi*xi+3.0*xi*xi*xi*xi*xi) * 0.125
+         poly = 35.0*xi-35.0*xi_cub+21.0*xi_fifth-5.0*xi_seventh
+         !wf = 1.0/16.0 * poly
+
+         !wf = 0.0
+      else
+         wf = sgn(xi)
+         !wf = 1.0
+      endif
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine set_wt(wt,n,l)
+      include 'SIZE'
+      include 'HSMG'
+      integer l
+      integer n
+      logical idomain
+      real wt(n+2,n+2,nelv)
+      real wx(n+2), wy(n+2)
+      real z(1:n), w(1:n), d0, k1, k2
+      real z_ext(1:n+2)
+      call zwgll(z,w,n)
+      z_ext(1) = -1 - d0
+      z_ext(n+2) = 1 + d0
+      do i=1,n
+         z_ext(i+1) = z(i)
+      enddo
+      d0 = 1+z(2)
+      do j=1,n+2
+         do i=1,n+2
+            k1 = (z_ext(i)+1.0)/d0
+            k2 = (z_ext(i)-1.0)/d0
+            idomain = k1.ge.-1.and.k1.le.1
+            k1 = wf(k1,idomain)
+            idomain = k2.ge.-1.and.k2.le.1
+            k2 = wf(k2,idomain)
+            wx(i) = 0.5*(k1-k2)
+            wy(i) = 0.5*(k1-k2)
+         enddo
+      enddo
+      write(6,*) wx
+      do ie=1,nelv
+         do j=1,n+2
+            do i=1,n+2
+               wt(i,j,ie) = wx(i)*wy(j)
+            enddo
+         enddo
+      enddo
+      return
+      end
+      
+c----------------------------------------------------------------------
+      subroutine my_weight_fn(e,n,l)
+      include 'SIZE'
+      include 'HSMG'
+      integer n, size, l, i, j, ie, size_ext
+      real work(n+2,n+2,nelv)
+      real work2(n+2,n+2,nelv)
+      real w(n,n,nelv)
+      real e(n,n,nelv)
+      real tol
+      tol = 1.E-6
+      size_ext = (n+2)*(n+2)*nelv
+      size = n*n*nelv
+      zero =  0
+      one  =  1
+      onem = -1
+      call rone(w,size)
+      call rone(work,size_ext)
+      call rone(work2,size_ext)
+      call set_wt(work,mg_nh(l),l)
+      call set_wt(work2,mg_nh(l),l)
+      write(6,*) work
+c     Sum overlap region (border excluded)
+      call hsmg_extrude(work,0,zero,work2,0,one ,n+2,n+2,1)
+      call hsmg_schwarz_dssum(work2,l)
+      call hsmg_extrude(work2,0,one ,work,0,onem,n+2,n+2,1)
+      call hsmg_extrude(work2,2,one,work2,0,one,n+2,n+2,1)
+      call hsmg_schwarz_toreg2d(w,work2,mg_nh(l))
+c     Sum borders
+      call hsmg_dssum(w,l)
+      do ie=1,nelv
+         do i=1,n
+            do j=1,n
+               if(abs(w(i,j,ie)).ge.tol) w(i,j,ie) = 1.0 / w(i,j,ie)
+            enddo
+         enddo
+      enddo
+      ! apply weight
+      do ie=1,nelv
+         do i=1,n
+            do j=1,n
+               e(i,j,ie) = e(i,j,ie) * w(i,j,ie)
+            enddo
+         enddo
+      enddo
+      return
+      end
+
