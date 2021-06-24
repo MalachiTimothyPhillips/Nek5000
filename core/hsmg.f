@@ -1998,6 +1998,9 @@ c-----------------------------------------------------------------------
       logical if_hyb
 
       lamMax_MA = mg_max_eig_sa(l)
+c     write(6,*) "Hello, world!"
+c     write(6,*) "l, mg_min_eig_mult, mg_max_eig_mult",
+c    $ l, mg_min_eig_mult(l), mg_max_eig_mult(l)
       lamMin = mg_min_eig_mult(l) * lamMax_MA
       lamMax = mg_max_eig_mult(l) * lamMax_MA
 
@@ -2059,6 +2062,7 @@ c-----------------------------------------------------------------------
       do i=1,n
         x(i) = x(i) + d(i)
       enddo
+      return
       end
 c-----------------------------------------------------------------------
 c Solve preconditioner: Mz=rhs using Chebyshev-accelerated Schwarz
