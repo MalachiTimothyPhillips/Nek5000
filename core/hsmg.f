@@ -1980,12 +1980,15 @@ c-----------------------------------------------------------------------
       parameter (lxyz=lx1*ly1*lz1)
       parameter(chebyOrder = 1)
       real scratch(lt)
+      real d(lt)
+      real Ad(lt)
+      real SAd(lt)
+      real res(lt)
       real h1, h2
       logical xIsZero
 
       integer n, l
-      real x(n), w(n), d(n), Ad(n), SAd(n)
-      real res(n)
+      real x(n), w(n)
       real lamMax_MA
       real lamMax, lamMin
 
