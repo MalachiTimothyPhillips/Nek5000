@@ -1978,7 +1978,7 @@ c-----------------------------------------------------------------------
 
       parameter (lt=lx1*ly1*lz1*lelt)
       parameter (lxyz=lx1*ly1*lz1)
-      parameter(chebyOrder = 1)
+      parameter(chebyOrder = 2)
       real scratch(lt)
       real d(lt)
       real Ad(lt)
@@ -2040,7 +2040,7 @@ c-----------------------------------------------------------------------
 
         ! r_k+1 = r_k - SAd_k
         call h1mg_axm(Ad,d,0.0, 1.0, l, scratch)
-        call h1mg_schwarz(SAd, Ad, 1.0, mg_h1_lmax)
+        call h1mg_schwarz(SAd, Ad, 1.0, l)
         do i=1,n
           res(i) = res(i) - SAd(i)
         enddo

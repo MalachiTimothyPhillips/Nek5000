@@ -329,8 +329,8 @@ c     GMRES iteration.
       logical iflag,if_hyb,if_cheb
       save    iflag,if_hyb,if_cheb
 c     data    iflag,if_hyb, if_cheb  /.false. , .true., .false. /
-c     data    iflag,if_hyb, if_cheb  /.false. , .false., .false. /
-      data    iflag,if_hyb,if_cheb  /.false. , .false., .true. /
+      data    iflag,if_hyb, if_cheb  /.false. , .false., .false. /
+c     data    iflag,if_hyb,if_cheb  /.false. , .false., .true. /
       real    norm_fac
       save    norm_fac
 
