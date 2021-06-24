@@ -65,12 +65,16 @@ c
      $   , mg_work      (2*lxm*lym*lzm*lelt) ! must be able to hold 
      $   , mg_work2     (lxm*lym*lzm*lelt)   ! two lower level extended
      $   , mg_worke     (lxm*lym*lzm,6)      ! schwarz arrays
+     $   , mg_max_eig_sa(lmgn)               ! max eigenvalue of S*A
+     $   , mg_max_eig_mult(lmgn)             ! max eig mult
+     $   , mg_min_eig_mult(lmgn)             ! min eig mult
 
       common /mghr/ mg_jh,mg_jht,mg_ah,mg_bh,mg_dh,mg_dht,mg_zh
      $            , mg_jhfc,mg_jhfct, mg_rstr_wt, mg_mask
      $            , mg_fast_s, mg_fast_d, mg_schwarz_wt
      $            , mg_solve_e,mg_solve_r, mg_h1,mg_h2,mg_b,mg_g
-     $            , mg_work,mg_work2,mg_worke
+     $            , mg_work,mg_work2,mg_worke, mg_max_eig_sa
+     $            , mg_max_eig_mult, mg_min_eig_mult
 
       integer mg_imask(0:lmgs*lmg_rwt*4*ldim*lelt-1) ! For h1mg, mask is a ptr
       equivalence(mg_imask,mg_mask)

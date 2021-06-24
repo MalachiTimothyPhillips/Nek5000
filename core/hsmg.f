@@ -47,6 +47,124 @@ c     call hsmg_setup_dbg
       return
       end
 c----------------------------------------------------------------------
+      real function h1mg_innerprod(a,b,l)
+      include 'SIZE'
+      include 'INPUT'
+      include 'HSMG'
+      include 'SEMHAT'
+
+      integer l
+      integer nx,ny,nz,Nlocal
+      integer p_b
+      real volvl
+      real a(1), b(1)
+      real w1 (lx1,ly1,lz1,lelt)
+
+      p_b = p_mg_b(l,mg_fld)
+
+      nx = mg_nh(l)
+      ny = mg_nh(l)
+      nz = mg_nhz(l)
+      Nlocal = nx * ny * nz * nelv
+
+      volvl = glsum(mg_b(p_b), Nlocal)
+
+      call col3 (w1,a,b,Nlocal)
+      call col2 (w1,mg_b(p_b),Nlocal)
+      h1mg_innerprod = glsum (w1,Nlocal)/volvl
+
+      return
+      end
+c----------------------------------------------------------------------
+c Estimate max eigenvalue of S*A for the given level
+c----------------------------------------------------------------------
+      subroutine max_eig_smooth(l)
+      include 'SIZE'
+      include 'INPUT'
+      include 'HSMG'
+      include 'SEMHAT'
+      parameter (lt=lx1*ly1*lz1*lelt)
+      parameter (nIter=20)
+      common /scrmg/ e(2*lt),w(lt),r(lt)
+      COMMON /SCRVH/ H1    (LX1,LY1,LZ1,LELV)
+     $ ,             H2    (LX1,LY1,LZ1,LELV)
+      real bk(lt)
+      real bkp1(lt)
+      real scratch(lt)
+      real rq
+      real norm_bk, inv_norm_bk
+      integer nx,ny,nz,l,Nlocal
+      integer iter, i
+      integer seed
+      integer icalld
+      save    icalld
+      data    icalld /0/
+
+      seed = 12345
+      if(icalld.eq.0) then
+        call srand(seed)
+        icalld = 1
+      endif
+
+      nx = mg_nh(l)
+      ny = mg_nh(l)
+      nz = mg_nhz(l)
+      Nlocal = nx * ny * nz * nelv
+
+      do i=1,Nlocal
+         bk(i) = rand()
+      enddo
+
+      call hsmg_dssum(bk, l)
+      norm_bk = sqrt(h1mg_innerprod(bk, bk, l))
+      inv_norm_bk = 1.0 / norm_bk
+      do i=1,Nlocal
+         bk(i) = bk(i) * inv_norm_bk
+      enddo
+
+      do iter=1,nIter-1
+
+         ! b_{k+1} = M_{Schwarz} A b_k
+         call h1mg_axm(scratch, bk, 0.0, 1.0, l, bkp1)
+         call h1mg_schwarz(bkp1, scratch, 1.0, l)
+
+         ! normalize b_{k+1}, assign to b_k for next iteration
+         norm_bk = sqrt(h1mg_innerprod(bkp1, bkp1, l))
+         inv_norm_bk = 1.0 / norm_bk
+         do i=1,Nlocal
+            bk(i) = bkp1(i) * inv_norm_bk
+         enddo
+      enddo
+
+      ! b_{k+1} = M_{Schwarz} A b_k
+      call h1mg_axm(scratch, bk, 0.0, 1.0, l, bkp1)
+      call h1mg_schwarz(bkp1, scratch, 1.0, l)
+
+      ! Rayeleigh Quotient,
+      ! \lambda \tilde \dfrac{b_k^T (M_{Schwarz} A) b_k}{b_k^T b_k}
+      !              = b_{k+1} ^T b_k
+      rq = h1mg_innerprod(bkp1,bk, l)
+
+      mg_max_eig_sa(l) = rq
+      write(6,*) "max eig SA (l):", l, rq
+      
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine hsmg_setup_cheb_wt
+      include 'SIZE'
+      include 'INPUT'
+      include 'HSMG'
+      include 'SEMHAT'
+      integer l
+      do l=2,mg_lmax ! don't bother with coarsest level
+         mg_max_eig_mult(l) = 1.1
+         mg_min_eig_mult(l) = 0.1
+         call max_eig_smooth(l)
+      enddo
+      return
+      end
+c----------------------------------------------------------------------
       subroutine hsmg_setup_semhat
       include 'SIZE'
       include 'INPUT'
@@ -1852,7 +1970,192 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      subroutine h1mg_solve(z,rhs,if_hybrid)  !  Solve preconditioner: Mz=rhs
+c  Chebyshev smoother
+c-----------------------------------------------------------------------
+      subroutine chebyshev(x,w,n,xIsZero,l)
+      include 'SIZE'
+      include 'HSMG'
+
+      parameter (lt=lx1*ly1*lz1*lelt)
+      parameter (lxyz=lx1*ly1*lz1)
+      parameter(chebyOrder = 1)
+      real scratch(lt)
+      real h1, h2
+      logical xIsZero
+
+      integer n, l
+      real x(n), w(n), d(n), Ad(n), SAd(n)
+      real res(n)
+      real lamMax_MA
+      real lamMax, lamMin
+
+      real theta, delta, invTheta, sigma, rho_n, rho_np1
+      real rhoDivDelta
+      integer i,j,k
+      logical if_hyb
+
+      lamMax_MA = mg_max_eig_sa(l)
+      lamMin = mg_min_eig_mult(l) * lamMax_MA
+      lamMax = mg_max_eig_mult(l) * lamMax_MA
+
+      theta = 0.5*(lamMax+lamMin)
+      delta = 0.5*(lamMax-lamMin)
+      invTheta = 1.0 / theta
+      sigma = theta/delta
+
+      rho_n = 1.0 / sigma
+      ! assume that x is zero
+
+      if(xIsZero) then
+        call h1mg_schwarz(res, w, 1.0, l)
+        do i=1,n
+          d(i) = res(i) * invTheta
+        enddo
+      else
+        !call ax(Ad,x,h1,h2,n)
+        call h1mg_axm(Ad,x,0.0, 1.0, l, scratch)
+        do i=1,n
+          res(i) = w(i) - Ad(i)
+        enddo
+        call h1mg_schwarz(SAd, res, 1.0, l)
+        do i=1,n
+          res(i) = SAd(i)
+          d(i) = res(i) * invTheta
+        enddo
+      endif
+
+      do k=1,chebyOrder
+        if (k.eq.1.and.xIsZero) then
+          do i=1,n
+            x(i) = d(i)
+          enddo
+        else
+          do i=1,n
+            x(i) = d(i) + x(i)
+          enddo
+        endif
+
+        ! r_k+1 = r_k - SAd_k
+        call h1mg_axm(Ad,d,0.0, 1.0, l, scratch)
+        call h1mg_schwarz(SAd, Ad, 1.0, mg_h1_lmax)
+        do i=1,n
+          res(i) = res(i) - SAd(i)
+        enddo
+        rho_np1 = 1.0 / (2.0 * sigma-rho_n)
+        rhoDivDelta = 2.0 * rho_np1/delta
+        ! d_k+1 = rho_k+1*rho_k*d_k + 2 * rho_k+1*r_k+1/delta
+        do i=1,n
+          d(i) = rho_np1 * rho_n * d(i) + rhoDivDelta*res(i)
+        enddo
+
+        rho_n = rho_np1
+
+      enddo
+
+      ! x_k+1 = x_k + d_k
+      do i=1,n
+        x(i) = x(i) + d(i)
+      enddo
+      end
+c-----------------------------------------------------------------------
+c Solve preconditioner: Mz=rhs using Chebyshev-accelerated Schwarz
+c-----------------------------------------------------------------------
+      subroutine h1mg_cheb(z,rhs)
+      real z(1),rhs(1)
+c     Assumes that preprocessing has been completed via h1mg_setup()
+
+      include 'SIZE'
+      include 'HSMG'       ! Same array space as HSMG
+      include 'GEOM'
+      include 'INPUT'
+      include 'MASS'
+      include 'SOLN'
+      include 'TSTEP'
+      include 'CTIMER'
+      include 'PARALLEL'
+      
+      common /scrhi/ h2inv (lx1,ly1,lz1,lelv)
+      common /scrvh/ h1    (lx1,ly1,lz1,lelv),
+     $               h2    (lx1,ly1,lz1,lelv)
+      parameter (lt=lx1*ly1*lz1*lelt)
+      common /scrmg/ e(2*lt),w(lt),r(lt)
+
+      real rhsStore(mg_h1_lmax * lt)
+      integer p_msk,p_b
+      logical if_hybrid
+      logical if_cheb
+
+      nel   = nelfld(ifield)
+
+      op    =  1.                                     ! Coefficients for h1mg_ax
+      om    = -1.
+      sigma =  1.
+      if (if_hybrid) sigma = 2./3.
+
+      l     = mg_h1_lmax
+      n     = mg_h1_n(l,mg_fld)
+      is    = 1                                       ! solve index
+
+      call chebyshev(z,rhs,n,.true.,l)                ! z := W M       rhs
+                                                      !         Cheb
+      call copy(r,rhs,n)                              ! r  := rhs
+      call h1mg_axm(r,z,op,om,l,w)                    ! r  := rhs - A z
+                                                      !  l
+
+      do l = mg_h1_lmax-1,2,-1                        ! DOWNWARD Leg of V-cycle
+         is = is + n
+         n  = mg_h1_n(l,mg_fld)
+                                                      !          T
+         call h1mg_rstr(r,l,.true.)                   ! r   :=  J r
+                                                      !  l         l+1
+         call copy(rhsStore((l-1)*lt+1), r, n)
+         call chebyshev(e(is),r,n,.true.,l)           ! e := sigma W M       r
+                                                      !  l            Cheb    l
+
+         call h1mg_axm(r,e(is),op,om,l,w)             ! r  := r - A e
+                                                      !  l           l
+      enddo
+      is = is+n
+                                                      !         T
+      call h1mg_rstr(r,1,.false.)                     ! r  :=  J  r
+                                                      !  l         l+1
+      p_msk = p_mg_msk(l,mg_fld)
+      call h1mg_mask(r,mg_imask(p_msk),nel)           !        -1
+      call hsmg_coarse_solve ( e(is) , r )            ! e  := A   r
+      call h1mg_mask(e(is),mg_imask(p_msk),nel)       !  1     1   1
+
+      do l = 2,mg_h1_lmax-1                           ! UNWIND.
+         im = is
+         is = is - n
+         n  = mg_h1_n(l,mg_fld)
+         call hsmg_intp (w,e(im),l-1)                 ! w   :=  J e
+         i1=is-1                                      !            l-1
+         do i=1,n
+            e(i1+i) = e(i1+i) + w(i)                  ! e   :=  e  + w
+         enddo                                        !  l       l
+         call copy(r,rhsStore((l-1)*lt+1), n)         ! restore rhs
+         call chebyshev(e(i1+i),r,n,.false.,l)
+      enddo
+
+      l  = mg_h1_lmax
+      n  = mg_h1_n(l,mg_fld)
+      im = is  ! solve index
+      call hsmg_intp(w,e(im),l-1)                     ! w   :=  J e
+      do i = 1,n                                      !            l-1
+         z(i) = z(i) + w(i)                           ! z := z + w
+      enddo
+
+      call chebyshev(z,rhs,n,.false.,l)
+
+      !call dsavg(z) ! Emergency hack --- to ensure continuous z!
+
+      return
+
+      end
+c-----------------------------------------------------------------------
+c Solve preconditioner: Mz=rhs
+c-----------------------------------------------------------------------
+      subroutine h1mg_solve(z,rhs,if_hybrid,if_cheb)
       real z(1),rhs(1)
 
 c     Assumes that preprocessing has been completed via h1mg_setup()
@@ -1875,6 +2178,12 @@ c     Assumes that preprocessing has been completed via h1mg_setup()
       common /scrmg/ e(2*lt),w(lt),r(lt)
       integer p_msk,p_b
       logical if_hybrid
+      logical if_cheb
+
+      if(if_cheb) then
+         call h1mg_cheb(z,rhs)
+         return
+      endif
 
 c     if_hybrid = .true.    ! Control this from gmres, according
 c     if_hybrid = .false.   ! to convergence efficiency
@@ -1987,7 +2296,6 @@ c
       ny = mg_nh(l)
       nz = mg_nhz(l)
       ng = 3*ldim-3
-
 
       call h1mg_axml (wk,p
      $               ,mg_h1(p_h1),mg_h2(p_h2),nx,ny,nz,nelfld(ifield)
@@ -2265,6 +2573,8 @@ c----------------------------------------------------------------------
       call mg_set_h2  (p_h2 ,l)
       call mg_set_gb  (p_g,p_b,l)
       call mg_set_msk (p_msk,l)
+
+      call hsmg_setup_cheb_wt()
 
       return
       end

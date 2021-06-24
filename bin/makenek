@@ -22,8 +22,8 @@ set -a
 #-------------------------------------------------------------------------------
 
 # optional compiler flags
-#FFLAGS=""
-#CFLAGS=""
+FFLAGS="-mcmodel=medium"
+CFLAGS="-mcmodel=medium"
 
 # optional linking flags
 #USR_LFLAGS+=" -L/usr/lib -lfoo"

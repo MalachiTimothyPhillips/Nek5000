@@ -326,10 +326,11 @@ c     GMRES iteration.
       real alpha, l, temp
       integer outer
 
-      logical iflag,if_hyb
-      save    iflag,if_hyb
-c     data    iflag,if_hyb  /.false. , .true. /
-      data    iflag,if_hyb  /.false. , .false. /
+      logical iflag,if_hyb,if_cheb
+      save    iflag,if_hyb,if_cheb
+c     data    iflag,if_hyb, if_cheb  /.false. , .true., .false. /
+c     data    iflag,if_hyb, if_cheb  /.false. , .false., .false. /
+      data    iflag,if_hyb,if_cheb  /.false. , .false., .true. /
       real    norm_fac
       save    norm_fac
 
@@ -406,7 +407,7 @@ c . . . . . Overlapping Schwarz + coarse-grid . . . . . . .
 c           if (outer.gt.2) if_hyb = .true.       ! Slow outer convergence
             if (ifmgrid) then
                if (param(40).ge.0 .and. param(40).le.2) then
-                  call h1mg_solve(z_gmres(1,j),w_gmres,if_hyb) ! z  = M   w
+                  call h1mg_solve(z_gmres(1,j),w_gmres,if_cheb,if_hyb) ! z = Mw
                else if (param(40).eq.3) then
                   call fem_amg_solve(z_gmres(1,j),w_gmres)
                endif

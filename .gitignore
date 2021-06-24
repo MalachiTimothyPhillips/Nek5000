@@ -2,6 +2,7 @@
 *.log
 *.mod
 *.o
+core/PARALLEL
 
 # tool executables built by running maketools
 bin/cgns2nek
